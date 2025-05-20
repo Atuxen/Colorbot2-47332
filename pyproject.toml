@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "Colorbot2"
+version = "1.0.0"
+description = ""
+authors =   ["A. Tuxen", "K. Gambhir", "L. Nyeland", "R. Ziskason - DTU Energy"]
+license = "MPL-2.0"
+packages = [{ include = "pump_controller" }]
+readme = "README.md"
+
+
+[tool.poetry.dependencies]
+python = ">=3.9"
+pyserial = "*"
+numpy = "*"
+pandas = "*"
+matplotlib = "*"
+datetime = "*"
+botorch = "*"
+scipy = "1.12.0"
+torch = "*"
+ipython = "*"
+paho-mqtt = "^2.1.0"
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.5"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

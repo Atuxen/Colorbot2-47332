@@ -12,6 +12,7 @@ from .utils import read_logfile, write_to_logfile
 from .mqtt_utils import HiveMQ
 import threading, json, time
 from queue import Queue, Empty
+from pathlib import Path
 
 class PumpController:
     def __init__(self, ser_port, baud_rate = 9600, cell_volume = 20.0, drain_time = 20.0, config_file = 'config.json'):
@@ -49,8 +50,23 @@ class PumpController:
         
         self.cell_volume = cell_volume
         self.drain_time = drain_time
+
+
+        
+        # Try to resolve path from cwd if not absolute
+        config_file = Path(config_file)
+        if not config_file.is_absolute():
+            config_file = Path(__file__).resolve().parent.parent / config_file
+
+        if not config_file.exists():
+            raise FileNotFoundError(f"Could not find config file at {config_file}")
+
+        self.config_file = config_file
+
         self.config_file = config_file
         self.pump_config = self.get_config()
+
+
 
       # ---------- MQTT branch -----------------------------------------------------
         if self.ser is None:
@@ -296,7 +312,9 @@ class PumpController:
         - The file is expected to contain a JSON-formatted configuration for pump settings.
         - The configuration data is returned as a dictionary.
         """
-            
+        
+        
+
         try:
             with open(self.config_file, "r") as file:
                 pump_config = json.load(file)

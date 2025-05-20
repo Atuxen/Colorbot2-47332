@@ -1,6 +1,9 @@
-# 47332_exercises
+# 47332 AI-orchestrated self-driving labs
 
-This repository contains the exercises for the course 47332 Autonomous materials discovery
+This repository contains the exercises for the course 47332 AI-orchestrated self-driving labs, 2025
 
-All material will be here before it is moved to the gbar where to course will take place
+## Quick setup in Google colab
+
+Get started with in Google Colab with no setup required: 
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Atuxen/EClab/blob/main/notebook.ipynb)
 

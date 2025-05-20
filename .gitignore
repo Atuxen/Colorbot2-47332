@@ -11,3 +11,6 @@ dist/
 **/logs/
 **/missionlogs/
 **/.DS_Store
+**/notebooks/2024/
+**/notebooks/Pre_2024/
+*.code-workspace

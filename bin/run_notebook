@@ -1,0 +1,26 @@
+#!/bin/bash
+
+if [[ $HOSTNAME -eq gbarlogin ]] ; then
+    echo
+    echo "ERROR: You have forgotten to run the command"
+    echo "          linuxsh -X"
+    echo "Run it, and try again."
+    exit 1
+fi
+
+if [[ -z $DISPLAY ]] ; then
+    echo
+    echo "WARNING: X11 forwarding is not enabled! You cannot run the ase gui."
+    echo
+    echo "Mac/Linux users: Did you forget -X in your ssh or linuxsh commands?"
+    echo "Windows users: Did you use putty with X11 instead of MobaXterm?"
+    echo
+    echo "To continue anyway, press ENTER.  To abort, write quit (or anything else) and then press ENTER"
+    read USERINPUT
+    if [[ ! -z $USERINPUT ]] ; then
+	exit 1
+    fi
+    echo "OK.  Continuing without X11 support."
+fi
+
+jupyter notebook --no-browser --port=40000 --ip=$HOSTNAME

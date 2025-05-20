@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# This script should be sourced by the students to set up
+# their accounts.  Use this command:
+#
+# source ~jchang/47332-exercises/setup2022
+#
+
+module load python3
+
+if [[ "`uname`" != "Linux" ]]; then
+    echo "ERROR: Should be run on a Linux machine, not `uname`"
+    exit 1
+fi
+
+echo
+echo
+echo "SETTING UP DATABAR ACCOUNT FOR USER" $USER
+echo
+
+# Set up .bashrc
+cd
+BRCSCRIPT=~jchang/47332_pkgs/47332-exercises/47332.bashrc
+grep -q "source $BRCSCRIPT" .bashrc
+if [[ $? -eq 0 ]]; then
+    echo "Your .bashrc file is already set up.  Good."
+else
+    echo "Setting up your .bashrc file."
+    echo "" >> .bashrc
+    echo "# The line below was added by the 47332 setup script." >> .bashrc
+    echo "source $BRCSCRIPT" >> .bashrc
+    echo "" >> .bashrc
+fi
+
+source $BRCSCRIPT
+
+# calling syncnote excutable in ~jchang/47332-exercises/bin/syncnote
+syncnote
+
+echo
+if [[ -d .jupyter ]]; then
+    echo "Jupyter Notebook configuration folder (.jupyter) found."
+else
+    echo "Creating Jupyter Notebook default configuration files."
+    jupyter notebook --generate-config
+fi
+
+echo "Enabling Jupyter Notebook extensions."
+#jupyter nbextension enable nglview --py 
+jupyter nbextension enable widgetsnbextension --py
+
+
+# Set up a Jupyter Notebook password.
+PSWDFILE=.jupyter/jupyter_notebook_config.json
+if [[ -f $PSWDFILE ]]; then
+    grep -q password $PSWDFILE
+    if [[ $? -eq 0 ]]; then
+	NEEDPSWD=0
+    else
+	NEEDPSWD=1
+    fi
+else
+    NEEDPSWD=1
+fi
+if [[ $NEEDPSWD -ne 0 ]]; then
+    echo
+    echo
+    echo "IMPORTANT: You should now set a password you use to access your"
+    echo "    Jupyter Notebooks.  You should probably NOT use your usual"
+    echo "    DTU password (never give it to random programs asking for it!)"
+    echo "    Choose a new password."
+    echo
+    jupyter notebook password
+    echo
+    
+    # Test if it worked
+    grep -q password $PSWDFILE
+    if [[ $? -eq 0 ]]; then
+	echo "Your password was set.  To change it later, run this command:"
+	echo "    jupyter notebook password"
+    else
+	echo "ERROR: Setting the password FAILED"
+	echo "    Please run this script again."
+	exit 1
+    fi
+    echo
+else
+    echo
+    echo "You already have a Jupyter Notebook password.  Good."
+    echo "If you need to change it, run the command"
+    echo "    jupyter notebook password"
+    echo
+fi
+
+echo "You are now ready to run the simulations!"
+echo "The notebook files are in the folder 47332/notebooks"
+

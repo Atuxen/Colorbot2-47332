@@ -1,0 +1,13 @@
+__pycache__/
+.venv/
+.ipynb_checkpoints/
+*.pyc
+*.log
+*.egg-info/
+build/
+notebooks_2022/robot_config.ini
+dist/
+**/silicologs/
+**/logs/
+**/missionlogs/
+**/.DS_Store

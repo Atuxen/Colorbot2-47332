@@ -1,0 +1,50 @@
+{   
+    "pumps": {
+        "R": {
+            "a": 0.407568641,
+            "b": -0.044207838,
+            "pin": 27
+        },
+
+        "G": {
+            "a": 0.532986491,
+            "b": -0.16045551,
+            "pin": 14
+        },
+
+        "B": {
+            "a": 0.376434458,
+            "b": -0.049696443,
+            "pin": 12
+        },
+
+        "Y": {
+            "a": 0.421974005,
+            "b": -0.077071988,
+            "pin": 13
+        },
+
+        "W": {
+            "a": 0.39460475,
+            "b": -0.072928905,
+            "pin": 25
+        },
+
+        "D": {
+            "a": 0.4380667,
+            "b": -0.049233,
+            "pin": 26
+        }
+    },
+
+    "mqtt":{
+        "BROKER_HOST": "ad4f7ebd5715403691c1876f43e8829b.s1.eu.hivemq.cloud",
+        "PORT" : 8883,
+        "USERNAME" : "kartoffel",
+        "PASSWORD" : "Kartoffelchip1",
+
+        "TOPIC_CMD"  : "colorbot-4/command",
+        "TOPIC_DATA" : "colorbot-4/data",
+        "STATUS_TPC" : "machines/colorbot-4/status"
+    }
+}

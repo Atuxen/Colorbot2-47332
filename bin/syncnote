@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+ROOTDIR=~jchang/47332_pkgs/47332-exercises
+SOURCEDIR=$ROOTDIR/notebooks/.
+NOTEDIR=$HOME/47332/notebooks
+DATADIR=$HOME/47332/data
+
+for DIR in $NOTEDIR $DATADIR
+    do
+        if [ ! -d $DIR ] 
+        then 
+        echo "Creating folder name $DIR."
+        mkdir -p $DIR
+        fi 
+    done
+
+echo "Copying notebook files into $NOTEDIR (if missing)."
+rsync -vrltbmq --ignore-existing $SOURCEDIR $NOTEDIR
+
+
+

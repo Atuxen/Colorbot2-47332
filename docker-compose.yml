@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  colorbot:
+    build: .
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/app
+    stdin_open: true
+    tty: true

@@ -14,3 +14,4 @@ dist/
 **/notebooks/2024/
 **/notebooks/Pre_2024/
 *.code-workspace
+secrets_mqtt.py

@@ -1,4 +1,5 @@
 {   
+
     "pumps": {
         "R": {
             "a": 0.407568641,
@@ -35,16 +36,6 @@
             "b": -0.049233,
             "pin": 26
         }
-    },
-
-    "mqtt":{
-        "BROKER_HOST": "ad4f7ebd5715403691c1876f43e8829b.s1.eu.hivemq.cloud",
-        "PORT" : 8883,
-        "USERNAME" : "kartoffel",
-        "PASSWORD" : "Kartoffelchip1",
-
-        "TOPIC_CMD"  : "colorbot-4/command",
-        "TOPIC_DATA" : "colorbot-4/data",
-        "STATUS_TPC" : "machines/colorbot-4/status"
     }
+
 }

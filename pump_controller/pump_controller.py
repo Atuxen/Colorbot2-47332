@@ -13,6 +13,7 @@ from .mqtt_utils import HiveMQ
 import threading, json, time
 from queue import Queue, Empty
 from pathlib import Path
+import secrets_mqtt as mqtt
 
 class PumpController:
     def __init__(self, ser_port, baud_rate = 9600, cell_volume = 20.0, drain_time = 20.0, config_file = 'config.json'):
@@ -70,17 +71,19 @@ class PumpController:
 
       # ---------- MQTT branch -----------------------------------------------------
         if self.ser is None:
-            m = self.pump_config["mqtt"]
-            self.mqtt = HiveMQ(m["BROKER_HOST"], m["PORT"],
-                               m["USERNAME"], m["PASSWORD"])
+            
+
+            self.mqtt = HiveMQ(mqtt.BROKER_HOST, mqtt.PORT,
+                               mqtt.USERNAME, mqtt.PASSWORD)
             self.mqtt.start()                     # loop thread
-            print(f"MQTT connected → {m['BROKER_HOST']}:{m['PORT']}")
+            print(f"MQTT connected → {mqtt.BROKER_HOST}:{mqtt.PORT}")
+           
 
             # ---- shared state for color replies ----
             self.last_color  = None
             self.color_event = threading.Event()
 
-            topic_data = m["TOPIC_DATA"]
+            topic_data = mqtt.TOPIC_DATA
 
             def _color_listener(client, userdata, msg, *, _self=self):
                 try:
@@ -96,7 +99,7 @@ class PumpController:
             self.mqtt.client.subscribe(topic_data, qos=1)
 
             # optional: subscribe to status topic
-            self.mqtt.client.subscribe(m["STATUS_TPC"], qos=1)
+            self.mqtt.client.subscribe(mqtt.STATUS_TPC, qos=1)
 
         self.target_mixture = [0.25, 0.25, 0.25, 0.25]
         self.target_color = [255, 255, 255]
@@ -352,7 +355,7 @@ class PumpController:
         self.color_event.clear()        # forget previous result
         self.last_color = None
 
-        self.mqtt.publish(self.pump_config["mqtt"]["TOPIC_CMD"],
+        self.mqtt.publish(mqtt.TOPIC_CMD,
                           {"Meas": True})
         print("Meas request sent…")
 
@@ -370,7 +373,7 @@ class PumpController:
         Wait for a single 'color_sense' message on TOPIC_DATA.
         Returns [r,g,b] or raises TimeoutError.
         """
-        topic_data = self.pump_config["mqtt"]["TOPIC_DATA"]
+        topic_data = mqtt.TOPIC_DATA
         result_q   = Queue(maxsize=1)
         done       = threading.Event()
 
@@ -430,7 +433,7 @@ class PumpController:
             self.run_test(f"<Mix,{pump_pin},{purge_time}>")
 
         else: 
-            self.mqtt.publish(self.pump_config["mqtt"]["TOPIC_CMD"], {"Mix":pump_pin, "duration": purge_time})
+            self.mqtt.publish(mqtt.TOPIC_CMD, {"Mix":pump_pin, "duration": purge_time})
             print(f"Purging pump {pump} for {purge_time} seconds...")
 
     def run_pump(self, pump, volume):

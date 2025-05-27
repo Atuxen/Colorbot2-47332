@@ -13,10 +13,21 @@ from .mqtt_utils import HiveMQ
 import threading, json, time
 from queue import Queue, Empty
 from pathlib import Path
-import secrets_mqtt as mqtt
+import secrets_mqtt as mqtt_conf
+import uuid
+import sys
+import paho.mqtt.client as mqtt
+import queue
+import time
+import uuid
+import json
+import ssl
+
+
+
 
 class PumpController:
-    def __init__(self, ser_port, baud_rate = 9600, cell_volume = 20.0, drain_time = 20.0, config_file = 'config.json'):
+    def __init__(self, ser_port, baud_rate = 115200, cell_volume = 20.0, drain_time = 20.0, config_file = 'config.json'):
 
         """
         Initializes a PumpController instance with the specified serial port and baud rate.
@@ -37,6 +48,8 @@ class PumpController:
         - It prints information about the opened serial port and waits for the Arduino to be ready.
         - Retrieves the pump configuration from 'config.json' and stores it in the 'pump_config' attribute.
         """
+
+
           # -------------------------------- USB branch --------------------------------
         if ser_port:
             self.ser = serial.Serial(ser_port, baud_rate)
@@ -44,15 +57,9 @@ class PumpController:
             self.wait_for_arduino()
         else:
             self.ser = None
+    
 
-
-          
-        
-        
-        self.cell_volume = cell_volume
-        self.drain_time = drain_time
-
-
+    
         
         # Try to resolve path from cwd if not absolute
         config_file = Path(config_file)
@@ -72,37 +79,35 @@ class PumpController:
       # ---------- MQTT branch -----------------------------------------------------
         if self.ser is None:
             
+            try: 
+                self.mqtt = HiveMQ(mqtt_conf.BROKER_HOST, mqtt_conf.PORT,
+                                mqtt_conf.USERNAME, mqtt_conf.PASSWORD)
+                self.mqtt.start()                     # loop thread
+                print(f"Computer client connected to MQTT broker.")
+                print(".....................................................")
+            except Exception as e:
+                print(f"Error connecting to MQTT broker: {e}")
+                raise e
+            
+            self._topic_handlers = {}
+            self.mqtt.client.on_message = lambda c, u, m: self._dispatch(c, u, m)
 
-            self.mqtt = HiveMQ(mqtt.BROKER_HOST, mqtt.PORT,
-                               mqtt.USERNAME, mqtt.PASSWORD)
-            self.mqtt.start()                     # loop thread
-            print(f"MQTT connected → {mqtt.BROKER_HOST}:{mqtt.PORT}")
-           
 
-            # ---- shared state for color replies ----
-            self.last_color  = None
-            self.color_event = threading.Event()
+            # --- MQTT topic-based dispatcher setup ---
+               
 
-            topic_data = mqtt.TOPIC_DATA
+            # --- MQTT topic subscriptions ---
+            self.mqtt.start(subs=[mqtt_conf.TOPIC_DATA, mqtt_conf.STATUS_TPC ,mqtt_conf.TOPIC_CMD]) 
 
-            def _color_listener(client, userdata, msg, *, _self=self):
-                try:
-                    d = json.loads(msg.payload)
-                    if "color_sense" in d:
-                        rgb = d["color_sense"]
-                        _self.last_color = [rgb["r"], rgb["g"], rgb["b"]]
-                        _self.color_event.set()
-                except Exception as e:
-                    print("listener parse error:", e)
+          
+            #self.mqtt.client.subscribe('#', qos=0)
 
-            self.mqtt.client.message_callback_add(topic_data, _color_listener)
-            self.mqtt.client.subscribe(topic_data, qos=1)
 
-            # optional: subscribe to status topic
-            self.mqtt.client.subscribe(mqtt.STATUS_TPC, qos=1)
 
         self.target_mixture = [0.25, 0.25, 0.25, 0.25]
         self.target_color = [255, 255, 255]
+        self.cell_volume = cell_volume
+        self.drain_time = drain_time
 
         self.last_color   = None
         self.color_event  = threading.Event()
@@ -119,6 +124,22 @@ class PumpController:
 
         
 
+    def _dispatch_wrapper(self, client, userdata, msg):
+        # Adapts the instance method for Paho
+        return self._dispatch(client, userdata, msg)
+
+
+    def _dispatch(self, client, userdata, msg):
+        topic = msg.topic
+        sys.stdout.flush()
+        handlers = self._topic_handlers.get(topic, [])
+        for h in handlers:
+            try:
+                h(client, userdata, msg)
+            except Exception as e:
+                print(f"Error in handler for {topic}: {e}")
+        print(f"[DISPATCH] Got message on {msg.topic}: {msg.payload}")
+        print(f"Handlers for this topic: {self._topic_handlers.get(msg.topic)}")
 
     ### COMMS ###
 
@@ -208,6 +229,8 @@ class PumpController:
                 pass
             msg = self.recv_from_arduino()
             print(msg)
+            self.send_to_arduino("CONTINUE")
+
 
     def clear_serial_buffer(self):
 
@@ -327,85 +350,145 @@ class PumpController:
         return pump_config
     
     
+    def reconnect_mqtt(self):
+        self.mqtt.client.loop_start()
+        print("MQTT loop thread started:", self.mqtt.client._thread is not None)
 
-    def _color_listener(client, userdata, msg):
-        try:
-            d = json.loads(msg.payload)
-            if "color_sense" in d:
-                rgb = d["color_sense"]
-                # store as [r,g,b]
-                self.last_color = [rgb["r"], rgb["g"], rgb["b"]]
-                self.color_event.set()
-        except Exception as e:
-            print("listener parse error:", e)
+        self.mqtt.client.reconnect()
+        # Proper wrapper to bind self
+        self.mqtt.client.on_message = lambda c, u, m: self._dispatch(c, u, m)
 
-   
 
     
-    def measure(self, timeout=8):
-        """
-        Publishes {"Meas":True}, waits up to *timeout* s for color_sense,
-        returns [r,g,b] list or raises TimeoutError.
-        """
+
+    def measure2(self, timeout=8):
         if self.ser:
             self.run_test("<Meas>")
             return self.get_rgb()
+        
 
-        # MQTT path ---------------------------------------------------
-        self.color_event.clear()        # forget previous result
+        
+
+        print("Connection status to MQTT broker: ", self.mqtt.client.is_connected())
+        # Ensure we're connected and subscribed
+        if not self.mqtt.client.is_connected():
+            try:
+                self.reconnect_mqtt()  # your reconnect helper
+            except Exception as e:
+                print(f"Error reconnecting to MQTT broker: {e}")
+                raise e
+            self.mqtt.client.subscribe(mqtt_conf.TOPIC_DATA, qos=0)  # subscribe again after reconnect
+        else:
+            # You can choose to always subscribe just in case, or skip if you know you're subscribed
+            self.mqtt.client.subscribe(mqtt_conf.TOPIC_DATA, qos=0)
+
+        self.mqtt.client.subscribe(mqtt_conf.TOPIC_DATA, qos=0)  # subscribe again after reconnect
+
+        req_id = str(uuid.uuid4())
+        self.color_event.clear()
         self.last_color = None
 
-        self.mqtt.publish(mqtt.TOPIC_CMD,
-                          {"Meas": True})
-        print("Meas request sent…")
+        response_q = Queue()
 
-        if not self.color_event.wait(timeout):
-            raise TimeoutError("No color_sense within %s s" % timeout)
-
-        return self.last_color         # always fresh, matched by callback
-
-
-
-
-
-    def _await_color(self, timeout=5.0):
-        """
-        Wait for a single 'color_sense' message on TOPIC_DATA.
-        Returns [r,g,b] or raises TimeoutError.
-        """
-        topic_data = mqtt.TOPIC_DATA
-        result_q   = Queue(maxsize=1)
-        done       = threading.Event()
-
-        # local callback
         def _once(client, userdata, msg):
+            print("Callback triggered on topic:", msg.topic)
+            print("Payload inside _once:", msg.payload)
             try:
-                payload = json.loads(msg.payload)
-                if "color_sense" in payload:
-                    rgb = payload["color_sense"]
-                    result_q.put([rgb["r"], rgb["g"], rgb["b"]])
-                    done.set()
+                d = json.loads(msg.payload)
+                print("Decoded payload:", d)
+                print("Expected req_id:", req_id)
+                if "req_id" in d and d["req_id"] == req_id and "color_sense" in d:
+                    rgb = d["color_sense"]
+                    response_q.put([rgb["r"], rgb["g"], rgb["b"]])
+                    self.color_event.set()
             except Exception as e:
-                print("Parse error in _await_color:", e)
+                print("Parse error:", e)
 
-        # attach + subscribe
-        self.mqtt.client.message_callback_add(topic_data, _once)
-        self.mqtt.client.subscribe(topic_data, qos=1)
+        self._topic_handlers.setdefault(mqtt_conf.TOPIC_DATA, []).append(_once)
 
-        # wait
-        if not done.wait(timeout):
-            # clean up even on timeout
-            self.mqtt.client.message_callback_remove(topic_data)
-            raise TimeoutError("No color_sense message within timeout")
+        self.mqtt.client.loop_start()  # Should be safe to call multiple times
 
-        # clean up + return data
-        self.mqtt.client.message_callback_remove(topic_data)
+        self.mqtt.publish(mqtt_conf.TOPIC_CMD, {
+            "Meas": True,
+            "req_id": req_id
+        })
+        print(f"Sending measurement request with request id: {req_id}")
+        print("Waiting for response:", timeout)
+
+        success = self.color_event.wait(timeout)
+
         try:
-            return result_q.get_nowait()
+            if not success:
+                raise TimeoutError("Timed out waiting for MQTT RGB response.")
+            return response_q.get_nowait()
         except Empty:
-            raise RuntimeError("Color queue empty after event was set")
+            raise RuntimeError("No RGB response in queue.")
+        finally:
+            self._topic_handlers[mqtt_conf.TOPIC_DATA].remove(_once)
 
+
+    def measure(self, timeout=8):
+        req_id = str(uuid.uuid4())
+        result_q = queue.Queue()
     
+        def on_connect(client, userdata, flags, rc):
+            print("Connecting to broker with result code", rc)
+            client.subscribe(mqtt_conf.TOPIC_DATA)
+    
+        def on_message(client, userdata, msg):
+            #print("Topic:", msg.topic, "Payload:", msg.payload)
+            try:
+                d = json.loads(msg.payload)
+                #print("Decoded payload:", d)
+                if d.get("req_id") == req_id and "color_sense" in d:
+                    rgb = d["color_sense"]
+                    result_q.put([rgb["r"], rgb["g"], rgb["b"]])
+            except Exception as e:
+                print("Parse error:", e)
+    
+        client = mqtt.Client()
+        client.username_pw_set(mqtt_conf.USERNAME, mqtt_conf.PASSWORD)
+        client.on_connect = on_connect
+        client.on_message = on_message
+        client.tls_set(cert_reqs=ssl.CERT_NONE)
+        client.tls_insecure_set(True)
+    
+        client.connect(mqtt_conf.BROKER_HOST, mqtt_conf.PORT)
+        client.loop_start()
+    
+        # Wait for connection (best: block until connected)
+        connected = False
+        for _ in range(40):  # up to 4s
+            if client.is_connected():
+                connected = True
+                break
+            time.sleep(0.1)
+        if not connected:
+            print("Could not connect to MQTT broker.")
+            client.loop_stop()
+            return None
+    
+        # Publish the command
+        print(f"Sending measurement request with request id: {req_id}")
+        client.publish(mqtt_conf.TOPIC_CMD, json.dumps({
+            "Meas": True,
+            "req_id": req_id
+        }))
+    
+        try:
+            rgb = result_q.get(timeout=timeout)
+            print("Received RGB:", rgb)
+            return rgb
+        except queue.Empty:
+            print("Timeout waiting for RGB response.")
+            return None
+        finally:
+            client.disconnect()
+            client.loop_stop()
+    
+
+        
+
     
     # Single Control Functions
 
@@ -433,7 +516,7 @@ class PumpController:
             self.run_test(f"<Mix,{pump_pin},{purge_time}>")
 
         else: 
-            self.mqtt.publish(mqtt.TOPIC_CMD, {"Mix":pump_pin, "duration": purge_time})
+            self.mqtt.publish(mqtt_conf.TOPIC_CMD, {"Mix":pump_pin, "duration": purge_time})
             print(f"Purging pump {pump} for {purge_time} seconds...")
 
     def run_pump(self, pump, volume):

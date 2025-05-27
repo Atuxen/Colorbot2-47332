@@ -9,7 +9,7 @@ readme = "README.md"
 
 
 [tool.poetry.dependencies]
-python = ">=3.9"
+python = ">=3.11"
 pyserial = "*"
 numpy = "*"
 pandas = "*"
@@ -21,6 +21,7 @@ torch = "*"
 ipython = "*"
 paho-mqtt = "^2.1.0"
 jupyterlab = "^4.4.2"
+odyssey = { git = "git@gitlab.com:auto_lab/odyssey.git", branch = "main" }
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.5"
